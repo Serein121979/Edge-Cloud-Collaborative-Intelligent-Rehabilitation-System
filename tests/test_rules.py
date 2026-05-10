@@ -1,3 +1,10 @@
+"""
+test_rules.py —— 规则状态机单元测试。
+
+测试正常动作周期（抬起→保持→放下→完成）以及异常动作检测
+（弯肘、躯干代偿），确保规则引擎输出正确状态和异常标记。
+"""
+
 import unittest
 
 from edge.rehab_edge.rules import RehabRuleConfig, RehabStateMachine

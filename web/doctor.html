@@ -8,7 +8,8 @@
   </head>
   <body>
     <main class="shell">
-      <!-- 医生端同样通过 session id 连接同一训练会话。 -->
+      <!-- 医生端同样通过 session id 连接同一训练会话。
+           医生和患者可以同时查看同一个 session 的实时数据。 -->
       <section class="topbar">
         <div>
           <p class="eyebrow">Medical Dashboard</p>
@@ -20,7 +21,8 @@
         </div>
       </section>
 
-      <!-- 会话摘要指标，方便评委快速看到闭环效果。 -->
+      <!-- 会话摘要指标，方便评委快速看到闭环效果。
+           显示总帧数、平均评分、训练时长和异常次数，一目了然。 -->
       <section class="dashboard-grid">
         <div class="metric">
           <span>帧数</span>
@@ -40,7 +42,8 @@
         </div>
       </section>
 
-      <!-- 左侧曲线看动作质量，右侧日志看完成和异常事件。 -->
+      <!-- 左侧曲线看动作质量，右侧日志看完成和异常事件。
+           医生可以同时监控趋势和具体事件，便于评估训练效果。 -->
       <section class="doctor-layout">
         <div class="chart-panel">
           <canvas id="angleChart" width="900" height="300"></canvas>

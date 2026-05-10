@@ -1,3 +1,13 @@
+/**
+ * app.js —— 患者端和医生端共用前端脚本。
+ *
+ * 通过 WebSocket 连接云端 FastAPI 服务，接收实时康复训练帧数据，
+ * 同时更新患者端（状态、提示、评分、指标、角度曲线）和
+ * 医生端（摘要统计、事件日志、角度曲线）。
+ *
+ * 使用原生 JavaScript + Canvas，不依赖第三方框架。
+ */
+
 const historyLimit = 120;
 // 前端只保留最近 120 帧，避免长时间演示导致浏览器越来越慢。
 const frames = [];
@@ -15,11 +25,20 @@ const stateCue = {
   anomaly: "出现代偿或肌肉负荷异常",
 };
 
+/**
+ * 简化 document.getElementById 的快捷函数。
+ * @param {string} id - 元素 ID
+ * @returns {HTMLElement|null}
+ */
 function $(id) {
   // 简短封装，减少重复的 document.getElementById。
   return document.getElementById(id);
 }
 
+/**
+ * 连接指定 session 的 WebSocket；医生端和患者端可以连同一个 session。
+ * 页面加载后自动连接默认 session ("edge_demo")。
+ */
 function connect() {
   // 连接指定 session 的 WebSocket；医生端和患者端可以连同一个 session。
   const input = $("sessionId");
@@ -41,6 +60,10 @@ function connect() {
   };
 }
 
+/**
+ * 新帧进入统一入口，同时刷新患者端、医生端和曲线。
+ * @param {Object} frame - 从边缘端上传并经过云端广播的康复帧数据
+ */
 function ingestFrame(frame) {
   // 新帧进入统一入口，同时刷新患者端、医生端和曲线。
   frames.push(frame);
@@ -50,6 +73,10 @@ function ingestFrame(frame) {
   drawChart();
 }
 
+/**
+ * 更新患者端页面：状态标签、引导提示、动作评分、关节角度、完成次数、肌电 RMS。
+ * @param {Object} frame - 当前帧数据
+ */
 function renderPatient(frame) {
   // 患者端只显示训练时最需要看的实时反馈。
   setText("shoulderValue", frame.pose.shoulder_angle.toFixed(0));
@@ -66,6 +93,11 @@ function renderPatient(frame) {
   }
 }
 
+/**
+ * 更新医生端页面：帧数、平均评分、异常次数、事件日志。
+ * 只记录"completed"（完成一次动作）和包含异常的事件，避免日志刷屏。
+ * @param {Object} frame - 当前帧数据
+ */
 function renderDoctor(frame) {
   // 医生端关注统计信息和异常事件。
   const anomalyCount = frames.reduce((sum, item) => sum + (item.anomalies || []).length, 0);
@@ -86,6 +118,10 @@ function renderDoctor(frame) {
   }
 }
 
+/**
+ * 处理页面刚连接时云端推送的会话摘要，恢复已有统计数据显示。
+ * @param {Object} summary - 会话摘要数据（frame_count, average_score, duration_s, anomalies, latest）
+ */
 function renderSummary(summary) {
   // 页面刚连接时显示当前会话已有统计，适合服务重启后恢复演示。
   if (!summary) return;
@@ -96,6 +132,10 @@ function renderSummary(summary) {
   if (summary.latest) ingestFrame(summary.latest);
 }
 
+/**
+ * 使用原生 Canvas 绘制肩关节和肘关节角度变化趋势曲线。
+ * 使用固定坐标（Canvas 尺寸 900x260/300），CSS 拉伸适配面板大小。
+ */
 function drawChart() {
   // 使用原生 Canvas 绘图，避免引入额外前端构建工具。
   const canvas = $("angleChart");
@@ -111,6 +151,12 @@ function drawChart() {
   drawSeries(ctx, width, height, (frame) => frame.pose.elbow_angle, "#147d7e");
 }
 
+/**
+ * 绘制背景参考网格和角度标签（四条水平线代表 45° 间隔）。
+ * @param {CanvasRenderingContext2D} ctx - Canvas 2D 上下文
+ * @param {number} width - Canvas 宽度
+ * @param {number} height - Canvas 高度
+ */
 function drawGrid(ctx, width, height) {
   // 背景网格帮助观察角度趋势，不承担精确医学读数。
   ctx.strokeStyle = "#d9e0e7";
@@ -129,6 +175,15 @@ function drawGrid(ctx, width, height) {
   ctx.fillText("elbow", width - 90, 28);
 }
 
+/**
+ * 绘制单条角度变化曲线（肩关节或肘关节）。
+ * 将 0-180° 角度值映射到 Canvas 垂直坐标。
+ * @param {CanvasRenderingContext2D} ctx - Canvas 2D 上下文
+ * @param {number} width - Canvas 宽度
+ * @param {number} height - Canvas 高度
+ * @param {Function} getter - 从帧数据中提取角度值的函数
+ * @param {string} color - 曲线颜色
+ */
 function drawSeries(ctx, width, height, getter, color) {
   // 把 0-180 度角度映射到 Canvas 高度。
   if (frames.length < 2) return;
@@ -149,12 +204,19 @@ function drawSeries(ctx, width, height, getter, color) {
   ctx.stroke();
 }
 
+/**
+ * 安全设置元素文本内容，节点不存在时静默跳过。
+ * 让同一份 JS 可同时服务患者端和医生端（某些元素只在其中一个页面存在）。
+ * @param {string} id - 元素 ID
+ * @param {string|number} value - 要设置的文本内容
+ */
 function setText(id, value) {
   // 节点不存在时静默跳过，让同一份 JS 可同时服务患者端和医生端。
   const node = $(id);
   if (node) node.textContent = value;
 }
 
+// 页面加载完成后自动连接，便于比赛现场快速打开页面。
 document.addEventListener("DOMContentLoaded", () => {
   // 默认连接 edge_demo，便于比赛现场快速打开页面。
   const input = $("sessionId");

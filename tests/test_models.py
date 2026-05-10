@@ -1,3 +1,10 @@
+"""
+test_models.py —— 共享数据协议单元测试。
+
+测试 RehabFrame 和 SensorFrame 的序列化/反序列化、
+字段类型一致性以及非法输入校验。
+"""
+
 import unittest
 
 from shared.rehab_protocol import RehabFrame, SensorFrame

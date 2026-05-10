@@ -8,7 +8,8 @@
   </head>
   <body>
     <main class="shell patient-shell">
-      <!-- 顶部区域：显示当前训练项目，并允许输入/切换 session。 -->
+      <!-- 顶部区域：显示当前训练项目，并允许输入/切换 session。
+           患者端默认展示"上肢肩肘训练"，评委可直观察看训练内容。 -->
       <section class="topbar">
         <div>
           <p class="eyebrow">Edge Rehabilitation</p>
@@ -21,7 +22,8 @@
       </section>
 
       <section class="patient-grid">
-        <!-- 大号动作状态和提示语，面向正在训练的患者。 -->
+        <!-- 大号动作状态和提示语，面向正在训练的患者。
+             使用大字体和高对比度颜色，远距离也能看清。 -->
         <div class="stage-panel">
           <div id="stateLabel" class="state-label">idle</div>
           <div id="cueText" class="cue-text">等待训练数据</div>
@@ -31,7 +33,8 @@
           </div>
         </div>
 
-        <!-- 四个核心实时指标：角度、次数、肌电。 -->
+        <!-- 四个核心实时指标：肩关节角度、肘关节角度、完成次数、肌电 RMS 值。
+             让患者和评委直观看到运动参数的实时变化。 -->
         <div class="metrics-strip">
           <div class="metric">
             <span>肩关节</span>
@@ -51,7 +54,8 @@
           </div>
         </div>
 
-        <!-- 简单 Canvas 曲线，展示肩关节和肘关节变化趋势。 -->
+        <!-- 简单 Canvas 曲线，展示肩关节和肘关节角度变化趋势。
+             使用原生 Canvas 绘制，不依赖第三方图表库。 -->
         <div class="chart-panel">
           <canvas id="angleChart" width="900" height="260"></canvas>
         </div>

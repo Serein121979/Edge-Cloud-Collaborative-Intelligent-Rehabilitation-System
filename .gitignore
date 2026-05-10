@@ -1,22 +1,28 @@
-.DS_Store
+# .gitignore —— Git 忽略规则。
+#
+# 排除 Python 缓存文件、虚拟环境、IDE 配置、系统文件、
+# 传感器数据和运行时产物，保持仓库干净。
+
+# Python
 __pycache__/
 *.py[cod]
-.pytest_cache/
-.venv/
-venv/
+*.egg-info/
 dist/
 build/
-*.egg-info/
-.mypy_cache/
-.ruff_cache/
 
-# Runtime data captured by the edge and local cloud demos.
-data/sessions/*.jsonl
-data/sessions/*.sqlite3
-data/raw/
-data/fused/
+# 虚拟环境
+venv/
+.venv/
 
-# Frontend/editor artifacts.
-node_modules/
+# IDE & 编辑器
 .vscode/
 .idea/
+*.swp
+*.swo
+
+# 传感器数据 —— 本地运行产生的 JSONL 数据文件，不上传。
+data/sessions/
+
+# 运行时产物
+*.log
+*.pid

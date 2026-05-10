@@ -9,16 +9,44 @@ from shared.rehab_protocol import VALID_STATES, RehabFrame, now_ms
 
 
 class SessionStore:
-    """极简会话存储：内存中快速访问，同时落盘 JSONL 方便复盘。"""
+    """极简会话存储：内存中快速访问，同时落盘 JSONL 方便复盘。
+
+    这是一个过渡方案，优点是不需要数据库，纯 Python 标准库即可工作。
+    后期可以无缝替换为 SQLite 或 PostgreSQL。
+
+    数据存储结构：
+    - sessions: dict[str, dict[str, Any]] —— 会话元数据
+    - frames: dict[str, list[dict[str, Any]]] —— 帧数据（按会话分组）
+    - 文件系统: data/sessions/{session_id}.jsonl
+
+    属性:
+        root: JSONL 文件根目录
+        sessions: 内存中的会话元数据字典
+        frames: 内存中的帧数据字典（按会话分组）
+    """
 
     def __init__(self, root: str | Path = "data/sessions") -> None:
+        """初始化存储，自动创建数据目录。
+
+        参数:
+            root: JSONL 文件存储根目录，默认 "data/sessions"
+        """
         self.root = Path(root)
         self.root.mkdir(parents=True, exist_ok=True)
         self.sessions: dict[str, dict[str, Any]] = {}
         self.frames: dict[str, list[dict[str, Any]]] = defaultdict(list)
 
     def create_session(self, payload: dict[str, Any]) -> dict[str, Any]:
-        """创建或覆盖一个训练会话。"""
+        """创建或覆盖一个训练会话。
+
+        如果 session_id 已存在，会覆盖原有会话（首次创建时使用）。
+        保存会话元数据到内存字典中。
+
+        参数:
+            payload: 会话信息，必须包含 session_id，可选 participant 和 scenario
+        返回:
+            创建的会话元数据字典
+        """
         session_id = str(payload["session_id"])
         session = {
             "session_id": session_id,
@@ -30,7 +58,16 @@ class SessionStore:
         return session
 
     def add_frame(self, frame: RehabFrame) -> dict[str, Any]:
-        """保存一帧训练数据，并追加写入对应 session 的 JSONL 文件。"""
+        """保存一帧训练数据，并追加写入对应 session 的 JSONL 文件。
+
+        如果会话尚未创建，自动创建之。数据同时保存在内存（供快速查询）
+        和磁盘（供服务重启后恢复）。
+
+        参数:
+            frame: 标准康复帧（RehabFrame 实例）
+        返回:
+            保存的帧数据字典
+        """
         payload = frame.to_dict()
         if frame.session_id not in self.sessions:
             self.create_session({"session_id": frame.session_id})
@@ -40,7 +77,16 @@ class SessionStore:
         return payload
 
     def summary(self, session_id: str) -> dict[str, Any]:
-        """计算医生端需要的训练摘要。"""
+        """计算医生端需要的训练摘要。
+
+        摘要内容包括总帧数、训练时长、各动作状态分布、异常类型和次数、
+        平均评分、完成次数和最新一帧数据。
+
+        参数:
+            session_id: 要查询的会话 ID
+        返回:
+            包含上述统计信息的字典
+        """
         frames = self.frames.get(session_id)
         if frames is None:
             frames = self._load_frames(session_id)
@@ -51,7 +97,6 @@ class SessionStore:
         scores: list[float] = []
         max_reps = 0
         for frame in frames:
-            # 统计每类动作状态的出现次数，用来判断训练过程是否完整。
             state_counts[str(frame.get("state", "idle"))] += 1
             scores.append(float(frame.get("score", 0.0)))
             for anomaly in frame.get("anomalies", []):
@@ -70,15 +115,34 @@ class SessionStore:
         }
 
     def latest_frames(self, session_id: str, limit: int = 120) -> list[dict[str, Any]]:
-        """返回最近若干帧，给前端画实时曲线使用。"""
+        """返回最近若干帧，给前端画实时曲线使用。
+
+        参数:
+            session_id: 会话 ID
+            limit: 返回的最大帧数，默认 120 帧（约 12 秒 @ 10Hz）
+        返回:
+            最新帧数据的列表
+        """
         return self.frames.get(session_id, [])[-limit:]
 
     def _jsonl_path(self, session_id: str) -> Path:
-        """根据 session_id 找到落盘文件路径。"""
+        """根据 session_id 找到落盘文件路径。
+
+        参数:
+            session_id: 会话 ID
+        返回:
+            JSONL 文件的完整路径
+        """
         return self.root / f"{session_id}.jsonl"
 
     def _load_frames(self, session_id: str) -> list[dict[str, Any]]:
-        """服务重启后，从 JSONL 文件恢复历史帧。"""
+        """服务重启后，从 JSONL 文件恢复历史帧到内存。
+
+        参数:
+            session_id: 会话 ID
+        返回:
+            恢复的帧数据列表，文件不存在时返回空列表
+        """
         path = self._jsonl_path(session_id)
         if not path.exists():
             return []
@@ -91,7 +155,13 @@ class SessionStore:
 
     @staticmethod
     def _duration_s(frames: list[dict[str, Any]]) -> float:
-        """根据第一帧和最后一帧时间戳估算训练时长。"""
+        """根据第一帧和最后一帧时间戳估算训练时长。
+
+        参数:
+            frames: 帧数据列表
+        返回:
+            训练时长（秒），不足 2 帧时返回 0
+        """
         if len(frames) < 2:
             return 0.0
         start = int(frames[0].get("timestamp_ms", 0))

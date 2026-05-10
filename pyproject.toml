@@ -1,12 +1,45 @@
+# pyproject.toml —— 项目构建与元数据配置。
+#
+# 使用现代 Python 项目标准 pyproject.toml 替代 setup.py。
+# 配置了项目元数据、依赖分组以及 lint 工具（ruff）规则。
+#
+# 安装命令：
+#   pip install -e .                    # 安装项目自身及核心依赖
+#   pip install -e ".[vision]"          # 额外安装视觉推理依赖
+#   pip install -e ".[dev]"             # 额外安装开发（测试/检查）依赖
+
 [project]
 name = "edge-cloud-rehab"
 version = "0.1.0"
-description = "Edge-cloud collaborative intelligent rehabilitation system prototype."
+description = "Edge-Cloud Collaborative Intelligent Rehabilitation System"
 requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "websockets>=14",
+    "numpy>=1.26",
+    "pydantic>=2.0",
+    "scipy>=1.14",
+]
 
+[project.optional-dependencies]
+# vision: 可选依赖组，用于启用摄像头姿态估计（MediaPipe Pose）。
+vision = [
+    "opencv-python>=4.10",
+    "mediapipe>=0.10",
+]
+# dev: 开发依赖组，包括单元测试和代码检查工具。
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.7",
+]
+
+# ruff 代码检查工具配置，强制执行 PEP 8 风格和类型注解检查。
 [tool.ruff]
-line-length = 100
+line-length = 120
+indent-width = 4
 target-version = "py310"
 
-[tool.pytest.ini_options]
-pythonpath = ["."]
+# 选择启用的规则集：E/F（PEP 8）和 I（导入排序）。
+[tool.ruff.lint]
+select = ["E", "F", "I"]
