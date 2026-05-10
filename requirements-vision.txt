@@ -1,0 +1,4 @@
+# 视觉姿态识别可选依赖。
+# 注意：MediaPipe 通常不支持最新 Python 3.13，建议在龙芯板/开发机使用 Python 3.10 或 3.11。
+opencv-python>=4.9
+mediapipe>=0.10

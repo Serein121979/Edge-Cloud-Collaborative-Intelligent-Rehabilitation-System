@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>医生端训练仪表盘</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <!-- 医生端同样通过 session id 连接同一训练会话。 -->
+      <section class="topbar">
+        <div>
+          <p class="eyebrow">Medical Dashboard</p>
+          <h1>康复训练会话</h1>
+        </div>
+        <div class="session-control">
+          <input id="sessionId" aria-label="Session ID" placeholder="session id" />
+          <button id="connectBtn">连接</button>
+        </div>
+      </section>
+
+      <!-- 会话摘要指标，方便评委快速看到闭环效果。 -->
+      <section class="dashboard-grid">
+        <div class="metric">
+          <span>帧数</span>
+          <strong id="frameCount">0</strong>
+        </div>
+        <div class="metric">
+          <span>平均评分</span>
+          <strong id="averageScore">0</strong>
+        </div>
+        <div class="metric">
+          <span>训练时长</span>
+          <strong><span id="durationValue">0</span>s</strong>
+        </div>
+        <div class="metric">
+          <span>异常次数</span>
+          <strong id="anomalyCount">0</strong>
+        </div>
+      </section>
+
+      <!-- 左侧曲线看动作质量，右侧日志看完成和异常事件。 -->
+      <section class="doctor-layout">
+        <div class="chart-panel">
+          <canvas id="angleChart" width="900" height="300"></canvas>
+        </div>
+        <div class="log-panel">
+          <h2>实时事件</h2>
+          <ol id="eventLog"></ol>
+        </div>
+      </section>
+    </main>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

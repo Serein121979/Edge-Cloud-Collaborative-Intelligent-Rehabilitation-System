@@ -1,0 +1,12 @@
+[project]
+name = "edge-cloud-rehab"
+version = "0.1.0"
+description = "Edge-cloud collaborative intelligent rehabilitation system prototype."
+requires-python = ">=3.10"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

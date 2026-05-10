@@ -1,0 +1,22 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+
+# Runtime data captured by the edge and local cloud demos.
+data/sessions/*.jsonl
+data/sessions/*.sqlite3
+data/raw/
+data/fused/
+
+# Frontend/editor artifacts.
+node_modules/
+.vscode/
+.idea/

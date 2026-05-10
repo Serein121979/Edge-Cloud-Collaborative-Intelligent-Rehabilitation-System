@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>患者实时反馈</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="shell patient-shell">
+      <!-- 顶部区域：显示当前训练项目，并允许输入/切换 session。 -->
+      <section class="topbar">
+        <div>
+          <p class="eyebrow">Edge Rehabilitation</p>
+          <h1>上肢肩肘训练</h1>
+        </div>
+        <div class="session-control">
+          <input id="sessionId" aria-label="Session ID" placeholder="session id" />
+          <button id="connectBtn">连接</button>
+        </div>
+      </section>
+
+      <section class="patient-grid">
+        <!-- 大号动作状态和提示语，面向正在训练的患者。 -->
+        <div class="stage-panel">
+          <div id="stateLabel" class="state-label">idle</div>
+          <div id="cueText" class="cue-text">等待训练数据</div>
+          <div class="score-row">
+            <span>动作评分</span>
+            <strong id="scoreValue">0</strong>
+          </div>
+        </div>
+
+        <!-- 四个核心实时指标：角度、次数、肌电。 -->
+        <div class="metrics-strip">
+          <div class="metric">
+            <span>肩关节</span>
+            <strong><span id="shoulderValue">0</span>°</strong>
+          </div>
+          <div class="metric">
+            <span>肘关节</span>
+            <strong><span id="elbowValue">180</span>°</strong>
+          </div>
+          <div class="metric">
+            <span>完成次数</span>
+            <strong id="repValue">0</strong>
+          </div>
+          <div class="metric">
+            <span>sEMG RMS</span>
+            <strong id="emgValue">0</strong>
+          </div>
+        </div>
+
+        <!-- 简单 Canvas 曲线，展示肩关节和肘关节变化趋势。 -->
+        <div class="chart-panel">
+          <canvas id="angleChart" width="900" height="260"></canvas>
+        </div>
+      </section>
+    </main>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
