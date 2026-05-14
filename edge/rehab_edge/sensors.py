@@ -3,7 +3,7 @@ import json
 import math
 import time
 from collections.abc import Iterator
-from typing import TextIO
+from typing import Any, TextIO
 
 from shared.rehab_protocol import EmgSample, ImuSample, SensorFrame, now_ms
 
@@ -115,7 +115,13 @@ class SerialSensorReader:
         serial: PySerial 串口对象
     """
 
-    def __init__(self, port: str, baudrate: int = 115200, timeout: float = 1.0) -> None:
+    def __init__(
+        self,
+        port: str,
+        baudrate: int = 115200,
+        timeout: float = 1.0,
+        serial_obj: Any | None = None,
+    ) -> None:
         """初始化串口传感器读取器。
 
         参数:
@@ -123,6 +129,10 @@ class SerialSensorReader:
             baudrate: 串口波特率，默认 115200（与 ESP32-S3 固件配置一致）
             timeout: 读取超时时间（秒），默认 1.0 秒
         """
+        if serial_obj is not None:
+            self.serial = serial_obj
+            return
+
         import serial  # type: ignore
 
         self.serial = serial.Serial(port=port, baudrate=baudrate, timeout=timeout)
@@ -137,10 +147,29 @@ class SerialSensorReader:
             SensorFrame: 从串口 JSON Lines 解析得到的传感器帧
         """
         while True:
-            raw = self.serial.readline().decode("utf-8", errors="ignore").strip()
-            if not raw:
+            yield self.read()
+
+    def read(self) -> SensorFrame:
+        """读取下一帧有效 ESP32 JSON。
+
+        串口联调时常见空行、半截 JSON、乱码或启动噪声。这里选择跳过坏行，
+        避免 controller 因单行脏数据退出。
+        """
+        while True:
+            raw = self.serial.readline()
+            if isinstance(raw, bytes):
+                line = raw.decode("utf-8", errors="ignore").strip()
+            else:
+                line = str(raw).strip()
+            if not line:
                 continue
-            yield SensorFrame.from_dict(json.loads(raw))
+            try:
+                payload = json.loads(line)
+                if not isinstance(payload, dict):
+                    continue
+                return SensorFrame.from_dict(payload)
+            except (json.JSONDecodeError, TypeError, ValueError):
+                continue
 
 
 def imu_features(frame: SensorFrame) -> dict[str, float | list[float]]:

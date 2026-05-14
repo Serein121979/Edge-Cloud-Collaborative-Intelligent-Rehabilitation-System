@@ -23,3 +23,6 @@ pydantic>=2.0
 
 # SciPy: signal processing and scientific computing.
 scipy>=1.14
+
+# PySerial: ESP32-S3 USB serial reader for the Loongson controller.
+pyserial>=3.5

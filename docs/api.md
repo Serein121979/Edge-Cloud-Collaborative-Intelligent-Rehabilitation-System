@@ -22,6 +22,34 @@ ESP32-S3 每行输出一个 JSON 对象：
 }
 ```
 
+## Controller Pose API
+
+x86 视觉节点把 MediaPipe 结果发送给龙芯 controller：
+
+- `POST /api/pose`
+
+请求体使用 `PoseFrame.to_dict()`：
+
+```json
+{
+  "shoulder_angle": 90,
+  "elbow_angle": 170,
+  "forearm_angle": 80,
+  "trunk_angle": 3,
+  "landmarks_2d": []
+}
+```
+
+返回：
+
+```json
+{
+  "ok": true
+}
+```
+
+controller 会保存最新一帧 `PoseFrame`。每次串口读到新的 `SensorFrame`，就用“最新视觉帧 + 当前传感器帧”生成 `RehabFrame`。
+
 ## RehabFrame
 
 龙芯端上传到云端的数据：
@@ -33,6 +61,8 @@ ESP32-S3 每行输出一个 JSON 对象：
   "pose": {
     "shoulder_angle": 0,
     "elbow_angle": 180,
+    "forearm_angle": 0,
+    "trunk_angle": 0,
     "landmarks_2d": []
   },
   "imu_features": {

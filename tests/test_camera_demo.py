@@ -1,7 +1,9 @@
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
-from edge.run_camera_demo import coaching_hint
+from edge.run_camera_demo import coaching_hint, sensor_reader_from_args
+from edge.rehab_edge.sensors import SimulatedSensorReader
 from shared.rehab_protocol import PoseFrame
 
 
@@ -37,6 +39,22 @@ class CameraDemoHintTests(unittest.TestCase):
         hint = coaching_hint(rehab, PoseFrame(shoulder_angle=20.0, elbow_angle=170.0))
         self.assertIn("还差", hint)
         self.assertNotIn("自然下垂", hint)
+
+    def test_sensor_reader_without_serial_uses_simulation(self):
+        args = SimpleNamespace(serial_port=None, serial_baud=115200, serial_timeout=1.0)
+        reader, label = sensor_reader_from_args(args)
+
+        self.assertIsInstance(reader, SimulatedSensorReader)
+        self.assertIn("simulated", label)
+
+    def test_sensor_reader_with_serial_uses_serial_reader(self):
+        args = SimpleNamespace(serial_port="/dev/ttyUSB1", serial_baud=115200, serial_timeout=1.0)
+        with patch("edge.run_camera_demo.SerialSensorReader") as serial_reader:
+            reader, label = sensor_reader_from_args(args)
+
+        self.assertEqual(reader, serial_reader.return_value)
+        self.assertIn("/dev/ttyUSB1", label)
+        serial_reader.assert_called_once_with(port="/dev/ttyUSB1", baudrate=115200, timeout=1.0)
 
 
 if __name__ == "__main__":

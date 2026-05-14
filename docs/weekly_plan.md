@@ -4,21 +4,21 @@
 
 - 建立仓库骨架、运行脚本、README。
 - 完成共享协议、边缘端模拟数据、规则引擎、本地云端、网页基础展示。
-- 在龙芯板确认 Python、摄像头、串口、网络环境。
-- RGB 摄像头 + MediaPipe 在龙芯板上完成关键点显示验证。
+- 固定双节点架构：x86 视觉服务 + 龙芯 controller。
+- x86 摄像头 + MediaPipe 输出 `PoseFrame`，通过 HTTP 发给 controller。
 
 ## Week 2
 
 - ESP32-S3 接 JY61P6 与 sEMG。
 - 输出统一 JSON Lines。
-- 龙芯端串口读取真实传感器数据。
+- 龙芯 controller 串口读取真实传感器数据。
 - 保存 raw/fused JSONL，建立训练数据目录规范。
 
 ## Week 3
 
 - 上肢肩肘训练规则识别稳定化。
 - 患者端实时反馈页可用于训练。
-- 完成摄像头 + 真实传感器小 Demo。
+- 完成 x86 视觉节点 + 龙芯 controller + 真实传感器小 Demo。
 
 ## Week 4
 

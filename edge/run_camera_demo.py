@@ -1,9 +1,9 @@
-"""Run the edge demo with a real USB camera and MediaPipe Pose.
+"""Run the single-machine camera demo with MediaPipe Pose.
 
 This entry point keeps the existing edge pipeline intact:
 camera frame -> MediaPipe Pose -> RehabFusionPipeline -> JSONL + cloud upload.
-IMU/sEMG values are simulated by default, so the Logitech camera can be tested
-before the ESP32 sensor bridge is connected.
+IMU/sEMG values are simulated by default, but a real ESP32 serial stream can be
+attached with --serial-port.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ from edge.rehab_edge.pose import (
 )
 from edge.rehab_edge.recorder import JsonlRecorder
 from edge.rehab_edge.rules import RehabRuleConfig, RehabStateMachine
-from edge.rehab_edge.sensors import SimulatedSensorReader
+from edge.rehab_edge.sensors import SerialSensorReader, SimulatedSensorReader
 from edge.rehab_edge.uploader import CloudUploader
 from shared.rehab_protocol import PoseFrame, make_session_id
 
@@ -60,7 +60,26 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--disable-upload", action="store_true", help="Keep JSONL locally without HTTP upload.")
     parser.add_argument("--no-preview", action="store_true", help="Disable OpenCV preview window.")
+    parser.add_argument(
+        "--serial-port",
+        default=None,
+        help="ESP32-S3 serial port. If omitted, simulated IMU/sEMG data is used.",
+    )
+    parser.add_argument("--serial-baud", type=int, default=115200, help="ESP32-S3 serial baud rate.")
+    parser.add_argument("--serial-timeout", type=float, default=1.0, help="Serial read timeout in seconds.")
     return parser.parse_args()
+
+
+def sensor_reader_from_args(args: argparse.Namespace):
+    """Build the sensor reader for the single-machine demo."""
+    if args.serial_port:
+        reader = SerialSensorReader(
+            port=args.serial_port,
+            baudrate=args.serial_baud,
+            timeout=args.serial_timeout,
+        )
+        return reader, f"serial {args.serial_port} @ {args.serial_baud}"
+    return SimulatedSensorReader(interval_s=0.0), "simulated IMU/sEMG"
 
 
 def open_camera(cv2, camera_index: int, width: int, height: int):
@@ -246,10 +265,11 @@ def main() -> None:
     fusion = RehabFusionPipeline(session_id=session_id, rules=rules)
     recorder = JsonlRecorder(f"data/{session_id}.jsonl")
     uploader = CloudUploader(base_url=args.cloud_url, timeout_s=0.2)
-    sensor_reader = SimulatedSensorReader(interval_s=0.0)
+    sensor_reader, sensor_source = sensor_reader_from_args(args)
     upload_enabled = not args.disable_upload
 
     print(f"[camera] session_id: {session_id}")
+    print(f"[camera] sensor source: {sensor_source}")
     if args.disable_upload:
         print("[camera] upload disabled; keeping local JSONL only")
         upload_enabled = False
