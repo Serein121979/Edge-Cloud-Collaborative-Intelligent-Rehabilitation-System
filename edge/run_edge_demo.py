@@ -21,6 +21,7 @@ from datetime import datetime
 from edge.rehab_edge.fusion import RehabFusionPipeline
 from edge.rehab_edge.pose import synthetic_pose
 from edge.rehab_edge.recorder import JsonlRecorder
+from edge.rehab_edge.rules import RehabRuleConfig, RehabStateMachine
 from edge.rehab_edge.sensors import SimulatedSensorReader
 from edge.rehab_edge.uploader import CloudUploader
 
@@ -37,7 +38,10 @@ def main() -> None:
     print(f"[演示] 会话ID: {session_id}")
 
     # 初始化各模块
-    fusion = RehabFusionPipeline(session_id=session_id)
+    fusion = RehabFusionPipeline(
+        session_id=session_id,
+        rules=RehabStateMachine(RehabRuleConfig(arm_side="right")),
+    )
     recorder = JsonlRecorder(f"data/{session_id}.jsonl")
     uploader = CloudUploader(base_url="http://localhost:8000")
 

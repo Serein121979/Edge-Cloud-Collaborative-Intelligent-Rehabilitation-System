@@ -179,11 +179,15 @@ class PoseFrame:
     第一版重点关注：
     - shoulder_angle：肩关节抬举角（手臂与躯干夹角）
     - elbow_angle：肘关节屈伸角（上臂与前臂夹角）
+    - forearm_angle：前臂抬举角，用于识别小臂代偿
+    - trunk_angle：躯干侧倾角（肩髋中线相对竖直轴）
     - landmarks_2d：完整 33 个关键点坐标（预留扩展用）
     """
 
     shoulder_angle: float = 0.0         # 肩关节抬举角度，0°=自然下垂，90°=水平抬起
     elbow_angle: float = 180.0          # 肘关节屈伸角度，180°=完全伸直，越小代表弯曲越多
+    forearm_angle: float = 0.0          # 前臂抬举角度，0°=自然下垂，90°=水平抬起
+    trunk_angle: float = 0.0            # 躯干侧倾角度，0°=直立，越大代表侧倾越明显
     landmarks_2d: list[dict[str, float]] = field(default_factory=list)  # MediaPipe 33 个关键点坐标
 
     @classmethod
@@ -193,6 +197,8 @@ class PoseFrame:
         return cls(
             shoulder_angle=float(payload.get("shoulder_angle", 0.0)),
             elbow_angle=float(payload.get("elbow_angle", 180.0)),
+            forearm_angle=float(payload.get("forearm_angle", 0.0)),
+            trunk_angle=float(payload.get("trunk_angle", 0.0)),
             landmarks_2d=list(payload.get("landmarks_2d", [])),
         )
 
@@ -201,6 +207,8 @@ class PoseFrame:
         return {
             "shoulder_angle": self.shoulder_angle,
             "elbow_angle": self.elbow_angle,
+            "forearm_angle": self.forearm_angle,
+            "trunk_angle": self.trunk_angle,
             "landmarks_2d": self.landmarks_2d,
         }
 

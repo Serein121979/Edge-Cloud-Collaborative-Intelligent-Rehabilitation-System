@@ -7,7 +7,7 @@ test_models.py —— 共享数据协议单元测试。
 
 import unittest
 
-from shared.rehab_protocol import RehabFrame, SensorFrame
+from shared.rehab_protocol import PoseFrame, RehabFrame, SensorFrame
 
 
 class ModelTests(unittest.TestCase):
@@ -30,7 +30,7 @@ class ModelTests(unittest.TestCase):
         payload = {
             "session_id": "s",
             "timestamp_ms": 1,
-            "pose": {"shoulder_angle": 10, "elbow_angle": 180, "landmarks_2d": []},
+            "pose": {"shoulder_angle": 10, "elbow_angle": 180, "forearm_angle": 0, "landmarks_2d": []},
             "imu_features": {},
             "emg_features": {},
             "state": "bad",
@@ -39,6 +39,12 @@ class ModelTests(unittest.TestCase):
         }
         with self.assertRaises(ValueError):
             RehabFrame.from_dict(payload)
+
+    def test_pose_frame_round_trip_includes_trunk_angle(self):
+        """摄像头姿态帧应保留 θ3 躯干侧倾角，并兼容缺省值。"""
+        pose = PoseFrame.from_dict({"shoulder_angle": 90, "elbow_angle": 170, "trunk_angle": 12})
+        self.assertEqual(pose.to_dict()["trunk_angle"], 12.0)
+        self.assertEqual(PoseFrame.from_dict({}).trunk_angle, 0.0)
 
 
 if __name__ == "__main__":

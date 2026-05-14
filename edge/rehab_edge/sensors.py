@@ -44,27 +44,34 @@ class SimulatedSensorReader:
             SensorFrame: 模拟的传感器数据帧
         """
         while True:
-            # 使用 step/20 作为时间参数，控制正弦波的变化速度
-            t = self.step / 20.0
-            roll = 5.0 * math.sin(t / 2.0)           # 横滚角正弦变化
-            pitch = 8.0 * math.sin(t / 3.0)          # 俯仰角正弦变化
-            yaw = 15.0 * math.sin(t / 6.0)           # 偏航角正弦变化
-            emg_raw = 420.0 + 160.0 * max(0.0, math.sin(t))  # 肌电值正半周期变化
-            if self.step % 300 > 245:                 # 每 300 步模拟一次肌电异常高值
-                emg_raw = 980.0
-            yield SensorFrame(
-                timestamp_ms=now_ms(),
-                imu=ImuSample(
-                    roll=roll,
-                    pitch=pitch,
-                    yaw=yaw,
-                    acc=[0.0, 0.0, 9.8],             # 静止状态下仅重力加速度
-                    gyro=[0.1 * math.sin(t), 0.2 * math.cos(t), 0.0],  # 角速度小幅度波动
-                ),
-                emg=EmgSample(channels=[emg_raw], rms=[emg_raw]),
-            )
-            self.step += 1
+            yield self.read()
+
+    def read(self) -> SensorFrame:
+        """生成一帧模拟传感器数据，可按需选择是否阻塞等待。"""
+        # 使用 step/20 作为时间参数，控制正弦波的变化速度
+        t = self.step / 20.0
+        roll = 5.0 * math.sin(t / 2.0)           # 横滚角正弦变化
+        pitch = 8.0 * math.sin(t / 3.0)          # 俯仰角正弦变化
+        yaw = 15.0 * math.sin(t / 6.0)           # 偏航角正弦变化
+        emg_raw = 420.0 + 160.0 * max(0.0, math.sin(t))  # 肌电值正半周期变化
+        if self.step % 300 > 245:                 # 每 300 步模拟一次肌电异常高值
+            emg_raw = 980.0
+
+        frame = SensorFrame(
+            timestamp_ms=now_ms(),
+            imu=ImuSample(
+                roll=roll,
+                pitch=pitch,
+                yaw=yaw,
+                acc=[0.0, 0.0, 9.8],             # 静止状态下仅重力加速度
+                gyro=[0.1 * math.sin(t), 0.2 * math.cos(t), 0.0],  # 角速度小幅度波动
+            ),
+            emg=EmgSample(channels=[emg_raw], rms=[emg_raw]),
+        )
+        self.step += 1
+        if self.interval_s > 0:
             time.sleep(self.interval_s)
+        return frame
 
 
 class JsonLineSensorReader:

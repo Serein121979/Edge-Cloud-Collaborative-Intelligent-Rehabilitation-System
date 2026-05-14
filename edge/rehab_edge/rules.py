@@ -1,9 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 from typing import Any
 
 from shared.rehab_protocol import PoseFrame
+
+LEFT_SHOULDER = 11
+RIGHT_SHOULDER = 12
+LEFT_HIP = 23
+RIGHT_HIP = 24
 
 
 @dataclass(slots=True)
@@ -23,12 +29,21 @@ class RehabRuleConfig:
     """
 
     idle_angle: float = 25.0          # 静止角度阈值（°），低于此值视为自然下垂
+    arm_side: str = "right"           # 当前分析的训练侧，支持 right / left
     target_angle: float = 90.0        # 训练目标角度（°），用于评分
-    hold_angle: float = 80.0          # 保持角度阈值（°），高于此值开始计时保持
+    hold_angle: float = 85.0          # 保持角度阈值（°），高于此值开始计时保持
+    target_tolerance_deg: float = 5.0  # 目标保持角度容差（°），默认 85°~95°
+    safety_stop_angle: float = 150.0   # 安全停止角度（°），超过后立即判为异常
     complete_angle: float = 35.0      # 完成角度阈值（°），低于此值且曾到过保持区视为完成
-    min_elbow_angle: float = 135.0    # 最小肘关节角度（°），肘关节伸直下限
+    min_elbow_angle: float = 160.0    # 最小肘关节角度（°），肘关节伸直下限
+    max_elbow_angle: float = 190.0    # 最大合理肘关节角度（°），超过通常视为测量或过伸风险
+    min_forearm_compensation_angle: float = 55.0  # 前臂明显上抬的阈值
+    max_shoulder_for_forearm_only: float = 45.0   # 上臂未充分抬起时的小臂代偿阈值
+    max_forearm_over_upper_arm_deg: float = 35.0  # 前臂相对上臂额外抬高过多的阈值
     max_roll_abs: float = 35.0       # 最大允许躯干横滚角度绝对值（°），超过视为代偿
     max_pitch_abs: float = 45.0      # 最大允许躯干俯仰角度绝对值（°），超过视为代偿
+    max_trunk_lean_deg: float = 15.0  # 摄像头视角下肩-髋连线偏离竖直方向的阈值
+    max_shoulder_hike_ratio: float = 0.18  # 活动侧肩峰相对对侧抬高比例阈值（按躯干长度归一化）
     high_emg_rms: float = 900.0      # 肌电 RMS 高阈值（ADC 值），超过视为肌肉过负荷
     hold_frames_required: int = 8    # 保持阶段所需最少连续帧数
 
@@ -86,6 +101,15 @@ class RehabStateMachine:
         self.hold_frames = 0                          # 保持区连续帧计数
         self.repetitions = 0                          # 累计完成次数
 
+    def set_arm_side(self, side: str) -> None:
+        """切换当前分析侧，并清空与动作阶段相关的短时状态。"""
+        if side == self.config.arm_side:
+            return
+        self.config.arm_side = side
+        self.previous_angle = None
+        self.has_reached_target = False
+        self.hold_frames = 0
+
     def evaluate(
         self,
         pose: PoseFrame,
@@ -112,9 +136,19 @@ class RehabStateMachine:
         anomalies = self._anomalies(pose, imu_features, emg_features)
 
         # 严重异常直接覆盖状态
-        if "trunk_compensation" in anomalies or "excessive_muscle_activation" in anomalies:
+        if (
+            "trunk_compensation" in anomalies
+            or "safety_stop" in anomalies
+            or "shoulder_over_target_compensation" in anomalies
+            or "shoulder_hike_compensation" in anomalies
+            or "excessive_muscle_activation" in anomalies
+        ):
             state = "anomaly"
-        elif "elbow_not_extended" in anomalies:
+        elif (
+            "elbow_not_extended" in anomalies
+            or "elbow_hyperextension" in anomalies
+            or "forearm_lift_compensation" in anomalies
+        ):
             state = "incorrect"
         else:
             state = self._motion_state(pose.shoulder_angle)
@@ -132,7 +166,7 @@ class RehabStateMachine:
         """根据肩关节角度变化判断当前动作阶段。
 
         状态逻辑：
-        - 角度 > hold_angle（80°）→ 进入保持区，连续 hold_frames_required 帧后变为 holding
+        - 角度 > hold_angle（默认 85°）→ 进入保持区，连续 hold_frames_required 帧后变为 holding
         - 曾到过保持区且角度回落到 complete_angle（35°）以下 → 计为一次 completed
         - 角度 < idle_angle（25°）且未到过保持区 → idle
         - 角度上升趋势（delta ≥ 1°）→ raising
@@ -184,9 +218,13 @@ class RehabStateMachine:
         """检测训练过程中可能出现的异常情况。
 
         目前支持三类异常检测：
-        1. 肘关节未伸直（elbow_not_extended）：抬臂时肘关节弯曲超过阈值
+        1. 安全停止（safety_stop）：肩角超过安全边界
         2. 躯干代偿（trunk_compensation）：身体过度倾斜来辅助抬手
-        3. 肌肉过负荷（excessive_muscle_activation）：肌电值过高
+        3. 肩部过顶代偿（shoulder_over_target_compensation）：肩角明显超过目标保持窗
+        4. 肘关节未伸直（elbow_not_extended）：抬臂时肘关节弯曲超过阈值
+        5. 前臂代偿（forearm_lift_compensation）：小臂抬高但上臂没有充分参与
+        6. 耸肩代偿（shoulder_hike_compensation）：活动侧肩峰明显抬高
+        7. 肌肉过负荷（excessive_muscle_activation）：肌电值过高
 
         参数:
             pose: 当前姿态帧（肩肘角度）
@@ -197,23 +235,98 @@ class RehabStateMachine:
         """
         config = self.config
         anomalies: list[str] = []
+        target_max = config.target_angle + config.target_tolerance_deg
 
-        # 1. 检测肘关节未伸直：在抬臂动作中肘关节角度小于阈值
-        if pose.shoulder_angle > config.idle_angle and pose.elbow_angle < config.min_elbow_angle:
-            anomalies.append("elbow_not_extended")
+        # 1. 安全边界最高优先级：角度过大时停止训练。
+        if pose.shoulder_angle > config.safety_stop_angle:
+            anomalies.append("safety_stop")
 
-        # 2. 检测躯干代偿：躯干横滚角或俯仰角超过允许范围
+        # 2. 检测躯干代偿：优先使用 IMU；摄像头 θ3 和关键点几何作为补充。
         roll = abs(float(imu_features.get("roll", 0.0)))
         pitch = abs(float(imu_features.get("pitch", 0.0)))
-        if roll > config.max_roll_abs or pitch > config.max_pitch_abs:
+        if (
+            roll > config.max_roll_abs
+            or pitch > config.max_pitch_abs
+            or pose.trunk_angle > config.max_trunk_lean_deg
+            or self._landmark_trunk_compensation(pose)
+        ):
             anomalies.append("trunk_compensation")
 
-        # 3. 检测肌肉过负荷：任意通道肌电 RMS 最大值超过阈值
+        # 3. 肩角超过目标保持窗后判为过顶代偿；150° 以上由 safety_stop 覆盖。
+        if target_max < pose.shoulder_angle <= config.safety_stop_angle:
+            anomalies.append("shoulder_over_target_compensation")
+
+        # 4. 检测肘关节未伸直：在有效抬臂区间内肘关节角度小于阈值。
+        if config.idle_angle < pose.shoulder_angle < config.target_angle and pose.elbow_angle < config.min_elbow_angle:
+            anomalies.append("elbow_not_extended")
+        if pose.elbow_angle > config.max_elbow_angle:
+            anomalies.append("elbow_hyperextension")
+
+        # 5. 检测前臂代偿：小臂抬得明显高，但上臂抬举不足或前臂额外上翘过多。
+        forearm_over_upper_arm = pose.forearm_angle - pose.shoulder_angle
+        if pose.forearm_angle >= config.min_forearm_compensation_angle and (
+            pose.shoulder_angle < config.max_shoulder_for_forearm_only
+            or forearm_over_upper_arm > config.max_forearm_over_upper_arm_deg
+        ):
+            anomalies.append("forearm_lift_compensation")
+
+        # 6. 检测耸肩代偿：活动侧肩峰相对对侧明显上提
+        if self._landmark_shoulder_hike(pose):
+            anomalies.append("shoulder_hike_compensation")
+
+        # 7. 检测肌肉过负荷：任意通道肌电 RMS 最大值超过阈值
         emg_rms_max = float(emg_features.get("rms_max", 0.0))
         if emg_rms_max > config.high_emg_rms:
             anomalies.append("excessive_muscle_activation")
 
         return anomalies
+
+    def _landmark_trunk_compensation(self, pose: PoseFrame) -> bool:
+        landmarks = pose.landmarks_2d
+        if len(landmarks) <= RIGHT_HIP:
+            return False
+
+        shoulder_index, _, hip_index = self._side_indices()
+        shoulder = self._landmark_xy(landmarks[shoulder_index])
+        hip = self._landmark_xy(landmarks[hip_index])
+        if shoulder is None or hip is None:
+            return False
+
+        dx = shoulder[0] - hip[0]
+        dy = shoulder[1] - hip[1]
+        if dy == 0:
+            return False
+        lean_deg = math.degrees(math.atan2(abs(dx), abs(dy)))
+        return pose.shoulder_angle > self.config.idle_angle and lean_deg > self.config.max_trunk_lean_deg
+
+    def _landmark_shoulder_hike(self, pose: PoseFrame) -> bool:
+        landmarks = pose.landmarks_2d
+        if len(landmarks) <= RIGHT_HIP:
+            return False
+
+        active_shoulder_index, other_shoulder_index, active_hip_index = self._side_indices()
+        active_shoulder = self._landmark_xy(landmarks[active_shoulder_index])
+        other_shoulder = self._landmark_xy(landmarks[other_shoulder_index])
+        active_hip = self._landmark_xy(landmarks[active_hip_index])
+        if active_shoulder is None or other_shoulder is None or active_hip is None:
+            return False
+
+        torso_len = math.hypot(active_shoulder[0] - active_hip[0], active_shoulder[1] - active_hip[1])
+        if torso_len == 0:
+            return False
+        shoulder_hike = (other_shoulder[1] - active_shoulder[1]) / torso_len
+        return pose.shoulder_angle > self.config.idle_angle and shoulder_hike > self.config.max_shoulder_hike_ratio
+
+    @staticmethod
+    def _landmark_xy(landmark: dict[str, Any]) -> tuple[float, float] | None:
+        if "x" not in landmark or "y" not in landmark:
+            return None
+        return float(landmark["x"]), float(landmark["y"])
+
+    def _side_indices(self) -> tuple[int, int, int]:
+        if self.config.arm_side == "left":
+            return LEFT_SHOULDER, RIGHT_SHOULDER, LEFT_HIP
+        return RIGHT_SHOULDER, LEFT_SHOULDER, RIGHT_HIP
 
     def _score(self, pose: PoseFrame, state: str, anomalies: list[str]) -> float:
         """计算当前动作的质量评分。

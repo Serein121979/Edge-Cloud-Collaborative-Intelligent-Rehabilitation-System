@@ -33,6 +33,15 @@ python -m edge.run_edge_demo --cloud-url http://127.0.0.1:8000 --frames 300
 pip install -r requirements-vision.txt
 ```
 
+部分较新的 Linux `mediapipe` 安装包只提供 Tasks API，不再暴露 `mp.solutions.pose`。
+如果你遇到 `module 'mediapipe' has no attribute 'solutions'`，请下载官方
+`pose_landmarker_full.task` 模型文件，放到项目根目录下的 `models/` 目录，
+或在运行时通过 `--model-path` 指定。
+
+```bash
+python -m edge.run_camera_demo --camera-index 0 --side right --model-path models/pose_landmarker_full.task
+```
+
 当前模拟闭环不依赖 MediaPipe，所以可以先在 Python 3.13 上跑通云端、网页和规则引擎。
 
 ## Repository Layout
