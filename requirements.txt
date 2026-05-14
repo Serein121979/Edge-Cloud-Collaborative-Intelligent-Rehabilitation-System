@@ -1,25 +1,25 @@
-# requirements.txt —— 项目核心运行时依赖。
+# requirements.txt - core runtime dependencies.
 #
-# 本文件与 pyproject.toml 中的 [project] dependencies 保持一致，
-# 供 pip 直接安装使用（不依赖 pyproject.toml 的场景）。
+# Keep this file aligned with [project] dependencies in pyproject.toml.
+# It is provided for direct pip installation.
 #
-# 安装命令：
+# Install:
 #   pip install -r requirements.txt
 
-# FastAPI —— 云端 HTTP/WebSocket 框架，用于构建实时康复数据 API。
+# FastAPI: HTTP/WebSocket API framework.
 fastapi>=0.115
 
-# Uvicorn —— ASGI 服务器，运行 FastAPI 应用，启用 WebSocket 支持。
+# Uvicorn: ASGI server for FastAPI.
 uvicorn[standard]>=0.32
 
-# websockets —— WebSocket 协议库，用于边缘端上传和云端推送实时帧数据。
+# websockets: WebSocket protocol library.
 websockets>=14
 
-# NumPy —— 数值计算库，用于 IMU 数据滤波和角度计算。
+# NumPy: numerical computing.
 numpy>=1.26
 
-# Pydantic —— 数据验证库，用于康复帧协议的数据校验。
+# Pydantic: data validation.
 pydantic>=2.0
 
-# SciPy —— 科学计算库，用于信号处理（滤波器、频谱分析等）。
+# SciPy: signal processing and scientific computing.
 scipy>=1.14

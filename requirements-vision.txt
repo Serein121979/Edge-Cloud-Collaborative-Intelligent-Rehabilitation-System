@@ -1,13 +1,12 @@
-# requirements-vision.txt —— 视觉推理依赖（可选）。
+# requirements-vision.txt - optional vision dependencies.
 #
-# 安装 OpenCV 和 MediaPipe 后，边缘端可以通过摄像头捕捉画面，
-# 使用 MediaPipe Pose 进行人体姿态估计，获得肩肘关节 2D 关键点坐标。
+# OpenCV captures camera frames, and MediaPipe Pose estimates 2D body landmarks.
 #
-# 安装命令：
+# Install:
 #   pip install -r requirements-vision.txt
 
-# OpenCV —— 摄像头采集和图像处理。
+# OpenCV: camera capture and image processing.
 opencv-python>=4.10
 
-# MediaPipe —— 谷歌开源的人体姿态估计库，用于实时 2D 关键点检测。
+# MediaPipe: realtime 2D pose landmark detection.
 mediapipe>=0.10
