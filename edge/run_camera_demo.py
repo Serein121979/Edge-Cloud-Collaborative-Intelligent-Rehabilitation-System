@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import threading
 import time
 
 from edge.rehab_edge.fusion import RehabFusionPipeline
@@ -28,7 +29,7 @@ from edge.rehab_edge.recorder import JsonlRecorder
 from edge.rehab_edge.rules import RehabRuleConfig, RehabStateMachine
 from edge.rehab_edge.sensors import SerialSensorReader, SimulatedSensorReader
 from edge.rehab_edge.uploader import CloudUploader
-from shared.rehab_protocol import PoseFrame, make_session_id
+from shared.rehab_protocol import PoseFrame, SensorFrame, make_session_id, now_ms
 
 
 def parse_args() -> argparse.Namespace:
@@ -67,6 +68,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--serial-baud", type=int, default=115200, help="ESP32-S3 serial baud rate.")
     parser.add_argument("--serial-timeout", type=float, default=1.0, help="Serial read timeout in seconds.")
+    parser.add_argument(
+        "--vision-only-rules",
+        action="store_true",
+        help="Read real sensors for logging, but ignore IMU/sEMG in rule judgement.",
+    )
     return parser.parse_args()
 
 
@@ -80,6 +86,33 @@ def sensor_reader_from_args(args: argparse.Namespace):
         )
         return reader, f"serial {args.serial_port} @ {args.serial_baud}"
     return SimulatedSensorReader(interval_s=0.0), "simulated IMU/sEMG"
+
+
+class LatestSensorBuffer:
+    """后台持续读取串口传感器，前台总是拿最新一帧，避免阻塞摄像头主循环。"""
+
+    def __init__(self, reader) -> None:
+        self.reader = reader
+        self._lock = threading.Lock()
+        self._latest = SensorFrame(timestamp_ms=now_ms())
+        self._thread: threading.Thread | None = None
+
+    def start(self) -> None:
+        if self._thread is not None:
+            return
+
+        def run() -> None:
+            while True:
+                frame = self.reader.read()
+                with self._lock:
+                    self._latest = frame
+
+        self._thread = threading.Thread(target=run, name="camera-demo-sensor", daemon=True)
+        self._thread.start()
+
+    def latest(self) -> SensorFrame:
+        with self._lock:
+            return self._latest
 
 
 def open_camera(cv2, camera_index: int, width: int, height: int):
@@ -262,14 +295,25 @@ def main() -> None:
     session_id = make_session_id("camera")
     initial_side = "right" if args.side == "auto" else args.side
     rules = RehabStateMachine(RehabRuleConfig(arm_side=initial_side))
-    fusion = RehabFusionPipeline(session_id=session_id, rules=rules)
+    fusion = RehabFusionPipeline(
+        session_id=session_id,
+        rules=rules,
+        use_imu_rules=not args.vision_only_rules,
+        use_emg_rules=not args.vision_only_rules,
+    )
     recorder = JsonlRecorder(f"data/{session_id}.jsonl")
     uploader = CloudUploader(base_url=args.cloud_url, timeout_s=0.2)
     sensor_reader, sensor_source = sensor_reader_from_args(args)
+    sensor_buffer = None
+    if args.serial_port:
+        sensor_buffer = LatestSensorBuffer(sensor_reader)
+        sensor_buffer.start()
     upload_enabled = not args.disable_upload
 
     print(f"[camera] session_id: {session_id}")
     print(f"[camera] sensor source: {sensor_source}")
+    if args.vision_only_rules:
+        print("[camera] rules mode: vision-only (real sensors are logged but not used for judgement)")
     if args.disable_upload:
         print("[camera] upload disabled; keeping local JSONL only")
         upload_enabled = False
@@ -304,7 +348,7 @@ def main() -> None:
                 pose = estimator.estimate(infer_frame)
                 analysis_side = estimator.current_side
                 rules.set_arm_side(analysis_side)
-                sensor_frame = sensor_reader.read()
+                sensor_frame = sensor_buffer.latest() if sensor_buffer is not None else sensor_reader.read()
                 rehab = fusion.fuse(pose, sensor_frame)
                 recorder.append(rehab.to_dict())
                 if upload_enabled:
@@ -333,6 +377,10 @@ def main() -> None:
 
             if last_rehab is not None and time.time() - last_report >= report_interval:
                 anomaly_text = "、".join(anomaly_label(item) for item in last_rehab.anomalies) if last_rehab.anomalies else "无"
+                imu_roll = float(last_rehab.imu_features.get("roll", 0.0))
+                imu_pitch = float(last_rehab.imu_features.get("pitch", 0.0))
+                imu_yaw = float(last_rehab.imu_features.get("yaw", 0.0))
+                emg_rms = float(last_rehab.emg_features.get("rms_mean", 0.0))
                 print(
                     f"[camera] 第{frame_count:>4}帧 | "
                     f"侧别 {last_side:<5} | "
@@ -340,6 +388,8 @@ def main() -> None:
                     f"肘角 {last_pose.elbow_angle:5.1f}° | "
                     f"前臂 {last_pose.forearm_angle:5.1f}° | "
                     f"躯干 {last_pose.trunk_angle:5.1f}° | "
+                    f"IMU R/P/Y {imu_roll:6.1f}/{imu_pitch:6.1f}/{imu_yaw:6.1f} | "
+                    f"EMG_RMS {emg_rms:6.1f} | "
                     f"状态 {state_label(last_rehab.state):<6} | "
                     f"评分 {last_rehab.score:5.1f} | "
                     f"异常 {anomaly_text} | "

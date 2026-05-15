@@ -20,7 +20,13 @@ class RehabFusionPipeline:
         rules: 规则引擎状态机实例
     """
 
-    def __init__(self, session_id: str, rules: RehabStateMachine | None = None) -> None:
+    def __init__(
+        self,
+        session_id: str,
+        rules: RehabStateMachine | None = None,
+        use_imu_rules: bool = True,
+        use_emg_rules: bool = True,
+    ) -> None:
         """初始化融合流水线。
 
         参数:
@@ -29,6 +35,8 @@ class RehabFusionPipeline:
         """
         self.session_id = session_id
         self.rules = rules or RehabStateMachine()
+        self.use_imu_rules = use_imu_rules
+        self.use_emg_rules = use_emg_rules
 
     def fuse(self, pose: PoseFrame, sensor: SensorFrame) -> RehabFrame:
         """融合一帧摄像头姿态数据和一帧传感器数据，执行规则判断并生成标准康复帧。
@@ -50,7 +58,11 @@ class RehabFusionPipeline:
         emg = emg_features(sensor)
 
         # 规则引擎评估
-        decision = self.rules.evaluate(pose=pose, imu_features=imu, emg_features=emg)
+        decision = self.rules.evaluate(
+            pose=pose,
+            imu_features=imu if self.use_imu_rules else {},
+            emg_features=emg if self.use_emg_rules else {},
+        )
 
         # 构建标准康复帧
         frame = RehabFrame(

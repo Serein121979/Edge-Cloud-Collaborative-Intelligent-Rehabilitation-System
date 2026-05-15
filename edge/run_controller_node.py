@@ -88,6 +88,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--side", choices=("left", "right"), default="right", help="Arm side used by controller rules.")
     parser.add_argument("--frames", type=int, default=0, help="Stop after N fused frames. 0 means run until Ctrl+C.")
     parser.add_argument("--report-interval", type=float, default=0.5, help="Console report interval in seconds.")
+    parser.add_argument(
+        "--vision-only-rules",
+        action="store_true",
+        help="Read real sensors for logging, but ignore IMU/sEMG in rule judgement.",
+    )
     return parser.parse_args()
 
 
@@ -118,7 +123,12 @@ def main() -> None:
 
     session_id = make_session_id("controller")
     rules = RehabStateMachine(RehabRuleConfig(arm_side=args.side))
-    fusion = RehabFusionPipeline(session_id=session_id, rules=rules)
+    fusion = RehabFusionPipeline(
+        session_id=session_id,
+        rules=rules,
+        use_imu_rules=not args.vision_only_rules,
+        use_emg_rules=not args.vision_only_rules,
+    )
     recorder = JsonlRecorder(f"data/{session_id}.jsonl")
     uploader = CloudUploader(base_url=args.cloud_url, timeout_s=0.2)
     sensor_reader, sensor_source = build_sensor_reader(args)
@@ -127,6 +137,8 @@ def main() -> None:
     print(f"[controller] session_id: {session_id}")
     print(f"[controller] pose API: http://{args.listen_host}:{args.listen_port}/api/pose")
     print(f"[controller] sensor source: {sensor_source}")
+    if args.vision_only_rules:
+        print("[controller] rules mode: vision-only (real sensors are logged but not used for judgement)")
     if args.disable_upload:
         print("[controller] upload disabled; keeping local JSONL only")
     elif uploader.create_session(session_id, participant=args.participant):
